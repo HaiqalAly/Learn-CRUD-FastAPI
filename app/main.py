@@ -21,8 +21,8 @@ class User(Base):
     __tablename__ = "users"
     id = Column(Integer, primary_key=True, index=True)
     name = Column(String(100), nullable=False, index=True)
-    email = Column(String, nullable=False, unique=True, index=True)
-    role = Column(String, nullable=False, index=True)
+    email = Column(String(100), nullable=False, unique=True, index=True)
+    role = Column(String(50), nullable=False, index=True)
 
 Base.metadata.create_all(bind=engine)
 
@@ -55,6 +55,7 @@ get_db()
 def root():
     return {"message": "Welcome to FastAPI with Database Integration!"}
 
+# Get user by ID
 @app.get("/users/{user_id}", response_model=UserResponse)
 def get_user(user_id: int, db: Session = Depends(get_db)):
     user = db.query(User).filter(User.id == user_id).first()
@@ -62,6 +63,13 @@ def get_user(user_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=404, detail="User not found!")
     return user
 
+# Get all users
+@app.get("/users/", response_model=List[UserResponse])
+def get_users(db: Session = Depends(get_db)):
+    users = db.query(User).all()
+    return users
+
+# Create user
 @app.post("/users/", response_model=UserResponse, status_code=201)
 def create_user(user: UserCreate, db: Session = Depends(get_db)):
     if db.query(User).filter(User.email == user.email).first():
@@ -73,3 +81,28 @@ def create_user(user: UserCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(new_user)
     return new_user
+
+# Update user
+@app.put("/users/{user_id}", response_model=UserResponse)
+def update_user(user_id: int, user: UserCreate, db: Session = Depends(get_db)):
+    existing_user = db.query(User).filter(User.id == user_id).first()
+    if not existing_user:
+        raise HTTPException(status_code=404, detail="User not found!")
+    
+    for field, value in user.model_dump().items():
+        setattr(existing_user, field, value)
+
+    db.commit()
+    db.refresh(existing_user)
+    return existing_user
+
+# Delete user
+@app.delete("/users/{user_id}", status_code=204)
+def delete_user(user_id: int, db: Session = Depends(get_db)):
+    user = db.query(User).filter(User.id == user_id).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found!")
+    
+    db.delete(user)
+    db.commit()
+    return
